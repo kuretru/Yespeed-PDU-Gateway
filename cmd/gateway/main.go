@@ -1,15 +1,34 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
-	"github.com/goccy/go-yaml"
+	"log"
 	"os"
+	"os/signal"
+	"syscall"
+
+	"github.com/goccy/go-yaml"
+	"github.com/kuretru/Yespeed-PDU-Gateway/entity"
+	"github.com/kuretru/Yespeed-PDU-Gateway/internal/collector"
 )
+
+type Config struct {
+	Collector *entity.CollectorConfig `yaml:"collector"`
+}
 
 func main() {
 	config := loadConfig()
-	fmt.Printf("%+v", config)
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	if err := collector.Init(ctx, config.Collector); err != nil {
+		os.Exit(1)
+	}
+
+	<-ctx.Done()
+	log.Printf("Received shutdown signal, exiting gracefully...")
 }
 
 func loadConfig() *Config {
