@@ -3,32 +3,44 @@ package collector
 import (
 	"context"
 	"fmt"
-	"log"
 
 	"github.com/kuretru/Yespeed-PDU-Gateway/entity"
 )
 
+var (
+	collectors []YespeedPDUCollector
+)
+
 type YespeedPDUCollector interface {
 	Run(ctx context.Context, config *entity.CollectorConfig) error
+	Stop(ctx context.Context)
 }
 
-func Init(ctx context.Context, config *entity.CollectorConfig) error {
-	if config == nil {
-		return fmt.Errorf("collector config is nil")
+func Init(ctx context.Context, configs []*entity.CollectorConfig) error {
+	if len(configs) == 0 {
+		return fmt.Errorf("collector config is empty")
 	}
 
-	var collector YespeedPDUCollector
-	switch config.Type {
-	case "mqtt":
-		collector = &MQTTCollector{}
-	default:
-		return fmt.Errorf("unknown collector type %v", config.Type)
-	}
+	collectors = make([]YespeedPDUCollector, 0, len(configs))
+	for _, config := range configs {
+		var collector YespeedPDUCollector
+		switch config.Type {
+		case "mqtt":
+			collector = &MQTTCollector{}
+		default:
+			return fmt.Errorf("unknown collector type %v", config.Type)
+		}
 
-	if err := collector.Run(ctx, config); err != nil {
-		log.Fatalf("Collector: run %v collector failed, %v", config.Type, err)
-		return err
+		if err := collector.Run(ctx, config); err != nil {
+			return fmt.Errorf("collector: run %v collector failed, %v", config.Type, err)
+		}
+		collectors = append(collectors, collector)
 	}
-	log.Printf("Collector: %v collector initialized", config.Type)
 	return nil
+}
+
+func Stop(ctx context.Context) {
+	for _, collector := range collectors {
+		collector.Stop(ctx)
+	}
 }

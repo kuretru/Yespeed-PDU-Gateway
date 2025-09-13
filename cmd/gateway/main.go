@@ -12,10 +12,13 @@ import (
 	"github.com/goccy/go-yaml"
 	"github.com/kuretru/Yespeed-PDU-Gateway/entity"
 	"github.com/kuretru/Yespeed-PDU-Gateway/internal/collector"
+	"github.com/kuretru/Yespeed-PDU-Gateway/internal/database"
+	"github.com/kuretru/Yespeed-PDU-Gateway/internal/publisher"
 )
 
 type Config struct {
-	Collector *entity.CollectorConfig `yaml:"collector"`
+	Collectors []*entity.CollectorConfig `yaml:"collector"`
+	Publishers []*entity.PublisherConfig `yaml:"publishers"`
 }
 
 func main() {
@@ -23,12 +26,19 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	if err := collector.Init(ctx, config.Collector); err != nil {
-		os.Exit(1)
+	database.Init(ctx)
+	if err := collector.Init(ctx, config.Collectors); err != nil {
+	}
+	if err := publisher.Init(ctx, config.Publishers); err != nil {
+		log.Fatal(err.Error())
 	}
 
 	<-ctx.Done()
 	log.Printf("Received shutdown signal, exiting gracefully...")
+
+	stopCtx := context.Background()
+	collector.Stop(stopCtx)
+	publisher.Stop(stopCtx)
 }
 
 func loadConfig() *Config {

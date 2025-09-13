@@ -6,13 +6,17 @@ import (
 	"fmt"
 	"log"
 	"net/url"
+	"strings"
 
 	"github.com/eclipse/paho.golang/autopaho"
 	"github.com/eclipse/paho.golang/paho"
 	"github.com/kuretru/Yespeed-PDU-Gateway/entity"
+	"github.com/kuretru/Yespeed-PDU-Gateway/internal/database"
+	"github.com/kuretru/Yespeed-PDU-Gateway/internal/utils"
 )
 
 type MQTTCollector struct {
+	connectionManager *autopaho.ConnectionManager
 }
 
 func (collector *MQTTCollector) Run(ctx context.Context, config *entity.CollectorConfig) error {
@@ -74,16 +78,21 @@ func (collector *MQTTCollector) Run(ctx context.Context, config *entity.Collecto
 		},
 	}
 
-	connectionManager, err := autopaho.NewConnection(ctx, clientConfig)
+	collector.connectionManager, err = autopaho.NewConnection(ctx, clientConfig)
 	if err != nil {
 		return fmt.Errorf("Collector.MQTT: NewConnection failed, %v", err)
 	}
-	if err = connectionManager.AwaitConnection(ctx); err != nil {
+	if err = collector.connectionManager.AwaitConnection(ctx); err != nil {
 		return fmt.Errorf("Collector.MQTT: AwaitConnection failed, %v", err)
 	}
+	log.Printf("MQTTCollector: initialized, server=%v", config.MQTT.URL)
 
-	<-ctx.Done()
 	return nil
+}
+
+func (collector *MQTTCollector) Stop(ctx context.Context) {
+	collector.connectionManager.Done()
+	log.Printf("MQTTCollector: stopped")
 }
 
 type DeviceGroupMessage struct {
@@ -127,11 +136,36 @@ type SubDevice struct {
 }
 
 func queryDeviceGroupHandler(publish *paho.Publish) {
+	ctx := context.Background()
+
+	nodeID := "unknown"
+	topicSeg := strings.Split(publish.Topic, "/")
+	if len(topicSeg) == 7 && topicSeg[4] != "" {
+		nodeID = topicSeg[4]
+	}
+
 	messageBytes := append([]byte{'{'}, publish.Payload...)
 	messageBytes = append(messageBytes, '}')
 	var message DeviceGroupMessage
 	if err := json.Unmarshal(messageBytes, &message); err != nil {
 		log.Fatalf("Collector.MQTT: DeviceGroupMessage unmarshal failed, %v", err)
 	}
-	log.Printf("%+v", message)
+	for _, switchGroup := range message.Devices {
+		for _, _switch := range switchGroup.SubDevices {
+			switchGlobalID := (switchGroup.ID-1)*len(switchGroup.SubDevices) + _switch.ID
+			pduDevice := entity.PDUDevice{
+				NodeID:        nodeID,
+				ID:            fmt.Sprintf("switch-%v", switchGlobalID),
+				Name:          _switch.Name,
+				Voltage:       utils.MustParseFloat32(switchGroup.Voltage),
+				Current:       utils.MustParseFloat32(_switch.Current),
+				Power:         utils.MustParseFloat32(_switch.Power),
+				ApparentPower: utils.MustParseFloat32(_switch.Energy),
+				Factor:        utils.MustParseFloat32(switchGroup.Factor), // 读上来都是0
+				Frequency:     utils.MustParseFloat32(switchGroup.Freq),
+			}
+			key := fmt.Sprintf("%v_%v", pduDevice.NodeID, pduDevice.ID)
+			database.SetPUDDevice(ctx, key, &pduDevice)
+		}
+	}
 }
