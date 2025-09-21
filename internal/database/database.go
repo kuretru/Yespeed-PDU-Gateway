@@ -11,7 +11,7 @@ import (
 
 var (
 	lock  sync.RWMutex
-	memDb map[string]*MemoryCell
+	memDb map[string]map[string]*MemoryCell
 )
 
 type MemoryCell struct {
@@ -21,46 +21,53 @@ type MemoryCell struct {
 }
 
 func Init(ctx context.Context) {
-	memDb = make(map[string]*MemoryCell)
+	memDb = make(map[string]map[string]*MemoryCell)
 
-	ticker := time.NewTicker(1 * time.Hour)
-	go func() {
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				cleanOfflineDevices()
-			}
-		}
-	}()
+	//ticker := time.NewTicker(1 * time.Hour)
+	//go func() {
+	//	defer ticker.Stop()
+	//	for {
+	//		select {
+	//		case <-ctx.Done():
+	//			return
+	//		case <-ticker.C:
+	//			cleanOfflineDevices()
+	//		}
+	//	}
+	//}()
 }
 
-func cleanOfflineDevices() {
+//func cleanOfflineDevices() {
+//	now := time.Now()
+//	lock.Lock()
+//	defer lock.Unlock()
+//	for key, value := range memDb {
+//		if value.LastSeen.Add(1 * time.Hour).Before(now) {
+//			delete(memDb, key)
+//		}
+//	}
+//}
+
+func SetPUDDevice(_ context.Context, nodeId string, deviceId string, device *entity.PDUDevice) {
 	now := time.Now()
 	lock.Lock()
 	defer lock.Unlock()
-	for key, value := range memDb {
-		if value.LastSeen.Add(1 * time.Hour).Before(now) {
-			delete(memDb, key)
-		}
+
+	nodeDevices, ok := memDb[nodeId]
+	if !ok {
+		nodeDevices = make(map[string]*MemoryCell)
+		memDb[nodeId] = nodeDevices
 	}
-}
 
-func SetPUDDevice(_ context.Context, key string, device *entity.PDUDevice) {
-	now := time.Now()
-	lock.Lock()
-	defer lock.Unlock()
-	if value, ok := memDb[key]; ok {
+	if value, ok := nodeDevices[deviceId]; ok {
 		if value.Type != entity.DeviceTypePDU {
-			log.Fatalf("Database: set device failed, %v type changed, old=%v new=pdu", key, value.Type)
+			log.Fatalf("Database: set device failed, %v type changed, node=%v old=%v new=pdu", deviceId, nodeId, value.Type)
 			return
 		}
 		value.LastSeen = now
 		value.PduDevice = device
 	} else {
-		memDb[key] = &MemoryCell{
+		nodeDevices[deviceId] = &MemoryCell{
 			LastSeen:  now,
 			Type:      entity.DeviceTypePDU,
 			PduDevice: device,
@@ -68,15 +75,25 @@ func SetPUDDevice(_ context.Context, key string, device *entity.PDUDevice) {
 	}
 }
 
-func GetPDUDevice(_ context.Context, key string) (*entity.PDUDevice, bool) {
+func GetAllPDUNodes(_ context.Context) []string {
 	lock.RLock()
 	defer lock.RUnlock()
-	if value, ok := memDb[key]; ok {
-		if value.Type == entity.DeviceTypePDU {
-			return value.PduDevice, true
-		}
-		log.Printf("Database: get device failed, %v type is not pdu", key)
-		return nil, false
+	result := make([]string, 0)
+	for nodeId := range memDb {
+		result = append(result, nodeId)
 	}
-	return nil, false
+	return result
+}
+
+func GetPDUNodeDevices(_ context.Context, nodeId string) []*MemoryCell {
+	lock.RLock()
+	defer lock.RUnlock()
+	if devices, ok := memDb[nodeId]; ok {
+		result := make([]*MemoryCell, 0, len(devices))
+		for _, device := range devices {
+			result = append(result, device)
+		}
+		return result
+	}
+	return nil
 }

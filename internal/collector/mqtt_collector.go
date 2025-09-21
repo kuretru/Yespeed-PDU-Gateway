@@ -85,14 +85,16 @@ func (collector *MQTTCollector) Run(ctx context.Context, config *entity.Collecto
 	if err = collector.connectionManager.AwaitConnection(ctx); err != nil {
 		return fmt.Errorf("Collector.MQTT: AwaitConnection failed, %v", err)
 	}
-	log.Printf("MQTTCollector: initialized, server=%v", config.MQTT.URL)
+	log.Printf("Collector.MQTT: initialized, server=%v", config.MQTT.URL)
 
 	return nil
 }
 
 func (collector *MQTTCollector) Stop(ctx context.Context) {
-	collector.connectionManager.Done()
-	log.Printf("MQTTCollector: stopped")
+	if collector.connectionManager != nil {
+		collector.connectionManager.Done()
+	}
+	log.Printf("Collector.MQTT: stopped")
 }
 
 type DeviceGroupMessage struct {
@@ -154,18 +156,17 @@ func queryDeviceGroupHandler(publish *paho.Publish) {
 		for _, _switch := range switchGroup.SubDevices {
 			switchGlobalID := (switchGroup.ID-1)*len(switchGroup.SubDevices) + _switch.ID
 			pduDevice := entity.PDUDevice{
-				NodeID:        nodeID,
-				ID:            fmt.Sprintf("switch-%v", switchGlobalID),
-				Name:          _switch.Name,
-				Voltage:       utils.MustParseFloat32(switchGroup.Voltage),
-				Current:       utils.MustParseFloat32(_switch.Current),
-				Power:         utils.MustParseFloat32(_switch.Power),
-				ApparentPower: utils.MustParseFloat32(_switch.Energy),
-				Factor:        utils.MustParseFloat32(switchGroup.Factor), // 读上来都是0
-				Frequency:     utils.MustParseFloat32(switchGroup.Freq),
+				NodeID:    nodeID,
+				ID:        fmt.Sprintf("%v", switchGlobalID),
+				Name:      _switch.Name,
+				Voltage:   utils.ParseFloat32OrZero(switchGroup.Voltage),
+				Current:   utils.ParseFloat32OrZero(_switch.Current),
+				Power:     utils.ParseFloat32OrZero(_switch.Power),
+				Energy:    utils.ParseFloat32OrZero(_switch.Energy),
+				Factor:    utils.ParseFloat32OrZero(switchGroup.Factor), // 读上来都是0
+				Frequency: utils.ParseFloat32OrZero(switchGroup.Freq),
 			}
-			key := fmt.Sprintf("%v_%v", pduDevice.NodeID, pduDevice.ID)
-			database.SetPUDDevice(ctx, key, &pduDevice)
+			database.SetPUDDevice(ctx, pduDevice.NodeID, pduDevice.ID, &pduDevice)
 		}
 	}
 }

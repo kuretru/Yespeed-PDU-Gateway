@@ -17,7 +17,7 @@ import (
 )
 
 type Config struct {
-	Collectors []*entity.CollectorConfig `yaml:"collector"`
+	Collectors []*entity.CollectorConfig `yaml:"collectors"`
 	Publishers []*entity.PublisherConfig `yaml:"publishers"`
 }
 

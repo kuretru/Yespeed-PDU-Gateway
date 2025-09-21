@@ -2,7 +2,7 @@ package utils
 
 import "strconv"
 
-func MustParseFloat32(value string) float32 {
+func ParseFloat32OrZero(value string) float32 {
 	result, err := strconv.ParseFloat(value, 32)
 	if err != nil {
 		return 0
