@@ -18,6 +18,8 @@ jobs:
         run: go test -v ./cmd/gateway
       - name: Build
         run: go build -v ./cmd/gateway
+      - name: Change mode
+        run: chmod +x gateway
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
