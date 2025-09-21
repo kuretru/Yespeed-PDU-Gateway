@@ -41,4 +41,6 @@ type Component struct {
 	ValueTemplate     string `json:"value_template,omitempty"`
 	PayloadOn         string `json:"payload_on,omitempty"`
 	PayloadOff        string `json:"payload_off,omitempty"`
+	StateOn           string `json:"state_on,omitempty"`
+	StateOff          string `json:"state_off,omitempty"`
 }

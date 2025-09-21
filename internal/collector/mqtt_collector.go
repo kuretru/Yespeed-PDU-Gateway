@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/url"
+	"strconv"
 	"strings"
 
 	"github.com/eclipse/paho.golang/autopaho"
@@ -29,7 +30,8 @@ func (collector *MQTTCollector) Run(ctx context.Context, config *entity.Collecto
 	router.DefaultHandler(func(publish *paho.Publish) {
 		slog.Warn("Collector.MQTT: message received without hit any route", "topic", publish.Topic)
 	})
-	router.RegisterHandler("/yespeed/pdu/yespeed/#/out/1000000", queryDeviceGroupHandler)
+	router.RegisterHandler("/yespeed/pdu/yespeed/+/out/1000000", queryDeviceGroupHandler)
+	//router.RegisterHandler("/yespeed/pdu/yespeed/+/out/1000101", sendCommandHandler)
 
 	clientConfig := autopaho.ClientConfig{
 		ServerUrls:      []*url.URL{u},
@@ -98,7 +100,29 @@ func (collector *MQTTCollector) Stop(ctx context.Context) {
 }
 
 func (collector *MQTTCollector) SendCommand(ctx context.Context, command *entity.Command) {
+	deviceGlobalId, err := strconv.Atoi(command.DeviceID)
+	if err != nil {
+		slog.Error("Collector.MQTT: SendCommand, parse device id failed", "err", err)
+		return
+	}
+	var req ControlDeviceReq
+	req.GroupID, req.DeviceID = deconstructionGlobalId(deviceGlobalId)
+	if command.Command == "ON" {
+		req.Action = 3
+	} else {
+		req.Action = 2
+	}
 
+	payloadBytes, _ := json.Marshal(req)
+	_, err = collector.connectionManager.Publish(ctx, &paho.Publish{
+		QoS:     0,
+		Retain:  false,
+		Topic:   fmt.Sprintf("/yespeed/pdu/yespeed/%v/in/1000101", command.NodeID),
+		Payload: payloadBytes,
+	})
+	if err != nil {
+		slog.Error("Collector.MQTT: SendCommand failed", "err", err)
+	}
 }
 
 type DeviceGroupMessage struct {
@@ -141,6 +165,12 @@ type SubDevice struct {
 	Energy      string `json:"energy"`  // 设备当前电量
 }
 
+type ControlDeviceReq struct {
+	GroupID  int `json:"devid"`
+	DeviceID int `json:"linid"`
+	Action   int `json:"actid"`
+}
+
 func queryDeviceGroupHandler(publish *paho.Publish) {
 	ctx := context.Background()
 
@@ -158,10 +188,9 @@ func queryDeviceGroupHandler(publish *paho.Publish) {
 	}
 	for _, switchGroup := range message.Devices {
 		for _, _switch := range switchGroup.SubDevices {
-			switchGlobalID := (switchGroup.ID-1)*len(switchGroup.SubDevices) + _switch.ID
 			pduDevice := entity.PDUDevice{
 				NodeID:    nodeID,
-				ID:        fmt.Sprintf("%v", switchGlobalID),
+				ID:        fmt.Sprintf("%v", calculateGlobalId(switchGroup.ID, _switch.ID)),
 				Name:      _switch.Name,
 				Voltage:   utils.ParseFloat32OrZero(switchGroup.Voltage),
 				Current:   utils.ParseFloat32OrZero(_switch.Current),
@@ -176,4 +205,14 @@ func queryDeviceGroupHandler(publish *paho.Publish) {
 			database.SetPUDDevice(ctx, pduDevice.NodeID, pduDevice.ID, &pduDevice)
 		}
 	}
+}
+
+func calculateGlobalId(groupId int, deviceId int) int {
+	return (groupId-1)*4 + deviceId
+}
+
+func deconstructionGlobalId(globalId int) (int, int) {
+	groupId := (globalId-1)/4 + 1
+	deviceId := globalId % 4
+	return groupId, deviceId
 }

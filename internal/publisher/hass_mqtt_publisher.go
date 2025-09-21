@@ -61,7 +61,7 @@ func (publisher *HomeAssistantMQTTPublisher) Run(ctx context.Context, config *en
 				slog.Error("Publisher.HASS_MQTT: subscribe failed", "err", err)
 				return
 			}
-			slog.Info("Publisher.HASS_MQTT: subscribed to ", "topic", config.MQTT.Topic)
+			slog.Info("Publisher.HASS_MQTT: subscribed to", "topic", config.MQTT.Topic)
 		},
 		OnConnectError: func(err error) {
 			slog.Error("Publisher.HASS_MQTT: connect failed", "err", err)
@@ -96,9 +96,13 @@ func (publisher *HomeAssistantMQTTPublisher) Run(ctx context.Context, config *en
 	slog.Info("Publisher.HASS_MQTT: initialized", "server", config.MQTT.URL)
 
 	// Slow start, waiting point value is ready
-	time.Sleep(20 * time.Second)
-	go publisher.runConfigTopic(ctx)
-	go publisher.runStateTopic(ctx)
+	select {
+	case <-ctx.Done():
+		return nil
+	case <-time.After(20 * time.Second):
+		go publisher.runConfigTopic(ctx)
+		go publisher.runStateTopic(ctx)
+	}
 
 	return nil
 }
@@ -194,9 +198,11 @@ func buildConfigPayload(device *entity.PDUDevice, mode string) []hass.Component 
 		_switch.Name = fmt.Sprintf("%v 开关", device.Name)
 		_switch.ObjectID = fmt.Sprintf("%v%v_%v", devicePrefix, device.NodeID, _switch.Key)
 		_switch.UniqueID = _switch.Key
-		_switch.ValueTemplate = fmt.Sprintf("{{ value_json.switch_%v_switch }}", device.ID)
+		_switch.ValueTemplate = fmt.Sprintf("{{ value_json.switch_%v.switch }}", device.ID)
 		_switch.PayloadOn = fmt.Sprintf(`{"switch_%v_switch":"ON"}`, device.ID)
 		_switch.PayloadOff = fmt.Sprintf(`{"switch_%v_switch":"OFF"}`, device.ID)
+		_switch.StateOn = "ON"
+		_switch.StateOff = "OFF"
 	}
 	result = append(result, _switch)
 
@@ -210,7 +216,7 @@ func buildConfigPayload(device *entity.PDUDevice, mode string) []hass.Component 
 		voltage.ObjectID = fmt.Sprintf("%v%v_%v", devicePrefix, device.NodeID, voltage.Key)
 		voltage.UniqueID = voltage.Key
 		voltage.UnitOfMeasurement = "V"
-		voltage.ValueTemplate = fmt.Sprintf("{{ value_json.switch_%v_voltage }}", device.ID)
+		voltage.ValueTemplate = fmt.Sprintf("{{ value_json.switch_%v.voltage }}", device.ID)
 	}
 	result = append(result, voltage)
 
@@ -224,7 +230,7 @@ func buildConfigPayload(device *entity.PDUDevice, mode string) []hass.Component 
 		current.ObjectID = fmt.Sprintf("%v%v_%v", devicePrefix, device.NodeID, current.Key)
 		current.UniqueID = current.Key
 		current.UnitOfMeasurement = "A"
-		current.ValueTemplate = fmt.Sprintf("{{ value_json.switch_%v_current }}", device.ID)
+		current.ValueTemplate = fmt.Sprintf("{{ value_json.switch_%v.current }}", device.ID)
 	}
 	result = append(result, current)
 
@@ -238,7 +244,7 @@ func buildConfigPayload(device *entity.PDUDevice, mode string) []hass.Component 
 		power.ObjectID = fmt.Sprintf("%v%v_%v", devicePrefix, device.NodeID, power.Key)
 		power.UniqueID = power.Key
 		power.UnitOfMeasurement = "W"
-		power.ValueTemplate = fmt.Sprintf("{{ value_json.switch_%v_power }}", device.ID)
+		power.ValueTemplate = fmt.Sprintf("{{ value_json.switch_%v.power }}", device.ID)
 	}
 	result = append(result, power)
 
@@ -253,7 +259,7 @@ func buildConfigPayload(device *entity.PDUDevice, mode string) []hass.Component 
 		energy.StateClass = "total_increasing"
 		energy.UniqueID = energy.Key
 		energy.UnitOfMeasurement = "kWh"
-		energy.ValueTemplate = fmt.Sprintf("{{ value_json.switch_%v_energy }}", device.ID)
+		energy.ValueTemplate = fmt.Sprintf("{{ value_json.switch_%v.energy }}", device.ID)
 	}
 	result = append(result, energy)
 
@@ -268,17 +274,19 @@ func (publisher *HomeAssistantMQTTPublisher) publishStateTopic(ctx context.Conte
 			if device.PduDevice.On {
 				switchState = "ON"
 			}
-			payload[fmt.Sprintf("switch_%v_switch", device.PduDevice.ID)] = switchState
-			payload[fmt.Sprintf("switch_%v_voltage", device.PduDevice.ID)] = device.PduDevice.Voltage
-			payload[fmt.Sprintf("switch_%v_current", device.PduDevice.ID)] = device.PduDevice.Current
-			payload[fmt.Sprintf("switch_%v_power", device.PduDevice.ID)] = &device.PduDevice.Power
-			payload[fmt.Sprintf("switch_%v_energy", device.PduDevice.ID)] = device.PduDevice.Energy
+			payload[fmt.Sprintf("switch_%v", device.PduDevice.ID)] = map[string]any{
+				"switch":  switchState,
+				"voltage": device.PduDevice.Voltage,
+				"current": device.PduDevice.Current,
+				"power":   device.PduDevice.Power,
+				"energy":  device.PduDevice.Energy,
+			}
 		}
 
 		payloadBytes, _ := json.Marshal(payload)
 		_, _ = publisher.connectionManager.Publish(ctx, &paho.Publish{
 			QoS:     0,
-			Retain:  false,
+			Retain:  true,
 			Topic:   fmt.Sprintf("homeassistant/device/%v%v/state", devicePrefix, nodeId),
 			Payload: payloadBytes,
 		})

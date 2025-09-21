@@ -9,7 +9,6 @@ import (
 
 var (
 	collectors []YespeedPDUCollector
-	SetChan    chan string
 )
 
 type YespeedPDUCollector interface {
@@ -38,8 +37,6 @@ func Init(ctx context.Context, configs []*entity.CollectorConfig) error {
 		}
 		collectors = append(collectors, collector)
 	}
-
-	SetChan = make(chan string, len(configs))
 
 	return nil
 }
