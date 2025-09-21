@@ -9,11 +9,13 @@ import (
 
 var (
 	collectors []YespeedPDUCollector
+	SetChan    chan string
 )
 
 type YespeedPDUCollector interface {
 	Run(ctx context.Context, config *entity.CollectorConfig) error
 	Stop(ctx context.Context)
+	SendCommand(ctx context.Context, command *entity.Command)
 }
 
 func Init(ctx context.Context, configs []*entity.CollectorConfig) error {
@@ -36,11 +38,20 @@ func Init(ctx context.Context, configs []*entity.CollectorConfig) error {
 		}
 		collectors = append(collectors, collector)
 	}
+
+	SetChan = make(chan string, len(configs))
+
 	return nil
 }
 
 func Stop(ctx context.Context) {
 	for _, collector := range collectors {
 		collector.Stop(ctx)
+	}
+}
+
+func SendCommand(ctx context.Context, command *entity.Command) {
+	for _, collector := range collectors {
+		collector.SendCommand(ctx, command)
 	}
 }

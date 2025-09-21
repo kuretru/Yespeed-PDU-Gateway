@@ -1,11 +1,12 @@
 package hass
 
 type MQTTDiscoveryMessage struct {
-	Device     DeviceInfo           `json:"device"`
-	Origin     OriginInfo           `json:"origin"`
-	Components map[string]Component `json:"components"`
-	StateTopic string               `json:"state_topic"`
-	QOS        int                  `json:"qos"`
+	Device       DeviceInfo           `json:"device"`
+	Origin       OriginInfo           `json:"origin"`
+	Components   map[string]Component `json:"components"`
+	CommandTopic string               `json:"command_topic"`
+	StateTopic   string               `json:"state_topic"`
+	QOS          int                  `json:"qos"`
 }
 
 type DeviceInfo struct {
@@ -38,4 +39,6 @@ type Component struct {
 	UniqueID          string `json:"unique_id,omitempty"`
 	UnitOfMeasurement string `json:"unit_of_measurement,omitempty"`
 	ValueTemplate     string `json:"value_template,omitempty"`
+	PayloadOn         string `json:"payload_on,omitempty"`
+	PayloadOff        string `json:"payload_off,omitempty"`
 }

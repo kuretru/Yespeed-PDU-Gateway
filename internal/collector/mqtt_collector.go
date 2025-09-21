@@ -97,6 +97,10 @@ func (collector *MQTTCollector) Stop(ctx context.Context) {
 	log.Printf("Collector.MQTT: stopped")
 }
 
+func (collector *MQTTCollector) SendCommand(ctx context.Context, command *entity.Command) {
+	
+}
+
 type DeviceGroupMessage struct {
 	Devices []DeviceGroup `json:"devices"`
 }
@@ -165,6 +169,9 @@ func queryDeviceGroupHandler(publish *paho.Publish) {
 				Energy:    utils.ParseFloat32OrZero(_switch.Energy),
 				Factor:    utils.ParseFloat32OrZero(switchGroup.Factor), // 读上来都是0
 				Frequency: utils.ParseFloat32OrZero(switchGroup.Freq),
+			}
+			if _switch.On == 1 {
+				pduDevice.On = true
 			}
 			database.SetPUDDevice(ctx, pduDevice.NodeID, pduDevice.ID, &pduDevice)
 		}
