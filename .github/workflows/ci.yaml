@@ -36,6 +36,8 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: build
+      - name: Change mode
+        run: chmod +x gateway/gateway
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2
       - name: Set up Docker Buildx
