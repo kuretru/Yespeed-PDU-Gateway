@@ -5,6 +5,6 @@ WORKDIR /app
 ENV TZ=Asia/Shanghai
 
 RUN mkdir -p /app/configs
-COPY gateway/gateway /app/gateway
+COPY gateway /app/gateway
 
 ENTRYPOINT ["/app/gateway"]
