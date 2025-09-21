@@ -2,7 +2,7 @@ package database
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -61,7 +61,8 @@ func SetPUDDevice(_ context.Context, nodeId string, deviceId string, device *ent
 
 	if value, ok := nodeDevices[deviceId]; ok {
 		if value.Type != entity.DeviceTypePDU {
-			log.Fatalf("Database: set device failed, %v type changed, node=%v old=%v new=pdu", deviceId, nodeId, value.Type)
+			slog.Warn("Database: set device failed, type changed",
+				"deviceId", deviceId, "nodeId", nodeId, "old", value.Type)
 			return
 		}
 		value.LastSeen = now

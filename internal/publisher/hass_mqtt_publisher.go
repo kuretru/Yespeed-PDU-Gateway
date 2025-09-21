@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/url"
 	"strings"
 	"time"
@@ -35,7 +35,7 @@ func (publisher *HomeAssistantMQTTPublisher) Run(ctx context.Context, config *en
 
 	router := paho.NewStandardRouter()
 	router.DefaultHandler(func(publish *paho.Publish) {
-		log.Printf("Publisher.HASS_MQTT: message received without hit any route, topic=%v", publish.Topic)
+		slog.Info("Publisher.HASS_MQTT: message received without hit any route", "topic", publish.Topic)
 	})
 	router.RegisterHandler("homeassistant/device/+/set", setDeviceStateHandler)
 
@@ -52,19 +52,19 @@ func (publisher *HomeAssistantMQTTPublisher) Run(ctx context.Context, config *en
 		// (60 = 1 minute, 3600 = 1 hour, 86400 = one day, 0xFFFFFFFE = 136 years, 0xFFFFFFFF = don't expire)
 		SessionExpiryInterval: 60,
 		OnConnectionUp: func(connectionManager *autopaho.ConnectionManager, connAck *paho.Connack) {
-			log.Printf("Publisher.HASS_MQTT: connected to server")
+			slog.Info("Publisher.HASS_MQTT: connected to server")
 			if _, err = connectionManager.Subscribe(context.Background(), &paho.Subscribe{
 				Subscriptions: []paho.SubscribeOptions{
 					{Topic: config.MQTT.Topic, QoS: 1},
 				},
 			}); err != nil {
-				log.Fatalf("Publisher.HASS_MQTT: subscribe failed, %v", err)
+				slog.Error("Publisher.HASS_MQTT: subscribe failed", "err", err)
 				return
 			}
-			log.Printf("Publisher.HASS_MQTT: subscribed to topic %v", config.MQTT.Topic)
+			slog.Info("Publisher.HASS_MQTT: subscribed to ", "topic", config.MQTT.Topic)
 		},
 		OnConnectError: func(err error) {
-			log.Fatalf("Publisher.HASS_MQTT: connect failed, %v", err)
+			slog.Error("Publisher.HASS_MQTT: connect failed", "err", err)
 		},
 		ClientConfig: paho.ClientConfig{
 			ClientID: config.MQTT.ClientID,
@@ -74,13 +74,13 @@ func (publisher *HomeAssistantMQTTPublisher) Run(ctx context.Context, config *en
 					return true, nil
 				}},
 			OnClientError: func(err error) {
-				log.Printf("Publisher.HASS_MQTT: client error, %v", err)
+				slog.Info("Publisher.HASS_MQTT: client error", "err", err)
 			},
 			OnServerDisconnect: func(d *paho.Disconnect) {
-				if d.Properties != nil {
-					log.Fatalf("Publisher.HASS_MQTT: server requested disconnect, %v", d.Properties.ReasonString)
+				if d.Properties != nil && d.Properties.ReasonString != "" {
+					slog.Error("Publisher.HASS_MQTT: server requested disconnect", "reason", d.Properties.ReasonString)
 				} else {
-					log.Fatalf("Publisher.HASS_MQTT: server requested disconnect, reason code: %v", d.ReasonCode)
+					slog.Error("Publisher.HASS_MQTT: server requested disconnect", "reasonCode", d.ReasonCode)
 				}
 			},
 		},
@@ -93,7 +93,7 @@ func (publisher *HomeAssistantMQTTPublisher) Run(ctx context.Context, config *en
 	if err = publisher.connectionManager.AwaitConnection(ctx); err != nil {
 		return fmt.Errorf("Publisher.HASS_MQTT: AwaitConnection failed, %v", err)
 	}
-	log.Printf("Publisher.HASS_MQTT: initialized, server=%v", config.MQTT.URL)
+	slog.Info("Publisher.HASS_MQTT: initialized", "server", config.MQTT.URL)
 
 	// Slow start, waiting point value is ready
 	time.Sleep(20 * time.Second)
@@ -107,7 +107,7 @@ func (publisher *HomeAssistantMQTTPublisher) Stop(ctx context.Context) {
 	if publisher.connectionManager != nil {
 		publisher.connectionManager.Done()
 	}
-	log.Printf("Publisher.HASS_MQTT: stopped")
+	slog.Info("Publisher.HASS_MQTT: stopped")
 }
 
 func (publisher *HomeAssistantMQTTPublisher) runConfigTopic(ctx context.Context) {
@@ -177,7 +177,7 @@ func (publisher *HomeAssistantMQTTPublisher) publishConfigTopic(ctx context.Cont
 			Topic:   fmt.Sprintf("homeassistant/device/%v%v/config", devicePrefix, nodeId),
 			Payload: payloadBytes,
 		})
-		log.Printf("Publisher.HASS_MQTT: published config topic")
+		slog.Info("Publisher.HASS_MQTT: published config topic")
 	}
 }
 
@@ -283,7 +283,7 @@ func (publisher *HomeAssistantMQTTPublisher) publishStateTopic(ctx context.Conte
 			Payload: payloadBytes,
 		})
 	}
-	log.Printf("Publisher.HASS_MQTT: published state topic")
+	slog.Info("Publisher.HASS_MQTT: published state topic")
 }
 
 func setDeviceStateHandler(publish *paho.Publish) {
@@ -297,14 +297,14 @@ func setDeviceStateHandler(publish *paho.Publish) {
 	}
 	topicSeg := strings.Split(publish.Topic, "/")
 	if !strings.HasPrefix(topicSeg[2], devicePrefix) {
-		log.Printf("Publisher.HASS_MQTT: received not my topic, %v", publish.Topic)
+		slog.Info("Publisher.HASS_MQTT: received not my topic", "topic", publish.Topic)
 		return
 	}
 
 	command.NodeID = strings.ReplaceAll(topicSeg[2], devicePrefix, "")
 	var payload map[string]string
 	if err := json.Unmarshal(publish.Payload, &payload); err != nil {
-		log.Printf("Publisher.HASS_MQTT: unmarshal payload failed: %v", err)
+		slog.Info("Publisher.HASS_MQTT: unmarshal payload failed", "err", err)
 		return
 	}
 

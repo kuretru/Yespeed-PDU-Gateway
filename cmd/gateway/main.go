@@ -4,7 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
@@ -28,13 +28,16 @@ func main() {
 
 	database.Init(ctx)
 	if err := collector.Init(ctx, config.Collectors); err != nil {
+		slog.Error(err.Error())
+		os.Exit(1)
 	}
 	if err := publisher.Init(ctx, config.Publishers); err != nil {
-		log.Fatal(err.Error())
+		slog.Error(err.Error())
+		os.Exit(1)
 	}
 
 	<-ctx.Done()
-	log.Printf("Received shutdown signal, exiting gracefully...")
+	slog.Info("Received shutdown signal, exiting gracefully...")
 
 	stopCtx := context.Background()
 	collector.Stop(stopCtx)
