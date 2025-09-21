@@ -39,8 +39,11 @@ type Component struct {
 	UniqueID          string `json:"unique_id,omitempty"`
 	UnitOfMeasurement string `json:"unit_of_measurement,omitempty"`
 	ValueTemplate     string `json:"value_template,omitempty"`
-	PayloadOn         string `json:"payload_on,omitempty"`
-	PayloadOff        string `json:"payload_off,omitempty"`
-	StateOn           string `json:"state_on,omitempty"`
-	StateOff          string `json:"state_off,omitempty"`
+
+	// switch
+	Optimistic *bool  `json:"optimistic,omitempty"`
+	PayloadOn  string `json:"payload_on,omitempty"`
+	PayloadOff string `json:"payload_off,omitempty"`
+	StateOn    string `json:"state_on,omitempty"`
+	StateOff   string `json:"state_off,omitempty"`
 }

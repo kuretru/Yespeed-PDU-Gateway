@@ -199,6 +199,10 @@ func buildConfigPayload(device *entity.PDUDevice, mode string) []hass.Component 
 		_switch.ObjectID = fmt.Sprintf("%v%v_%v", devicePrefix, device.NodeID, _switch.Key)
 		_switch.UniqueID = _switch.Key
 		_switch.ValueTemplate = fmt.Sprintf("{{ value_json.switch_%v.switch }}", device.ID)
+
+		optimistic := true
+		_switch.Optimistic = &optimistic
+
 		_switch.PayloadOn = fmt.Sprintf(`{"switch_%v_switch":"ON"}`, device.ID)
 		_switch.PayloadOff = fmt.Sprintf(`{"switch_%v_switch":"OFF"}`, device.ID)
 		_switch.StateOn = "ON"
