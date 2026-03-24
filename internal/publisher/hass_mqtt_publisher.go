@@ -218,6 +218,7 @@ func buildConfigPayload(device *entity.PDUDevice, mode string) []hass.Component 
 		voltage.DeviceClass = "voltage"
 		voltage.Name = fmt.Sprintf("%v 电压", device.Name)
 		voltage.ObjectID = fmt.Sprintf("%v%v_%v", devicePrefix, device.NodeID, voltage.Key)
+		voltage.StateClass = hass.SensorStateClassMeasurement
 		voltage.UniqueID = voltage.Key
 		voltage.UnitOfMeasurement = "V"
 		voltage.ValueTemplate = fmt.Sprintf("{{ value_json.switch_%v.voltage }}", device.ID)
@@ -232,6 +233,7 @@ func buildConfigPayload(device *entity.PDUDevice, mode string) []hass.Component 
 		current.DeviceClass = "current"
 		current.Name = fmt.Sprintf("%v 电流", device.Name)
 		current.ObjectID = fmt.Sprintf("%v%v_%v", devicePrefix, device.NodeID, current.Key)
+		current.StateClass = hass.SensorStateClassMeasurement
 		current.UniqueID = current.Key
 		current.UnitOfMeasurement = "A"
 		current.ValueTemplate = fmt.Sprintf("{{ value_json.switch_%v.current }}", device.ID)
@@ -246,6 +248,7 @@ func buildConfigPayload(device *entity.PDUDevice, mode string) []hass.Component 
 		power.DeviceClass = "power"
 		power.Name = fmt.Sprintf("%v 有功功率", device.Name)
 		power.ObjectID = fmt.Sprintf("%v%v_%v", devicePrefix, device.NodeID, power.Key)
+		power.StateClass = hass.SensorStateClassMeasurement
 		power.UniqueID = power.Key
 		power.UnitOfMeasurement = "W"
 		power.ValueTemplate = fmt.Sprintf("{{ value_json.switch_%v.power }}", device.ID)
@@ -260,6 +263,7 @@ func buildConfigPayload(device *entity.PDUDevice, mode string) []hass.Component 
 		energy.DeviceClass = "energy"
 		energy.Name = fmt.Sprintf("%v 有功总电能", device.Name)
 		energy.ObjectID = fmt.Sprintf("%v%v_%v", devicePrefix, device.NodeID, energy.Key)
+		energy.StateClass = hass.SensorStateClassTotalIncreasing
 		energy.StateClass = "total_increasing"
 		energy.UniqueID = energy.Key
 		energy.UnitOfMeasurement = "kWh"

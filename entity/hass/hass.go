@@ -1,5 +1,12 @@
 package hass
 
+const (
+	SensorStateClassMeasurement      = "measurement"
+	SensorStateClassMeasurementAngle = "measurement_angle"
+	SensorStateClassTotal            = "total"
+	SensorStateClassTotalIncreasing  = "total_increasing"
+)
+
 type MQTTDiscoveryMessage struct {
 	Device       DeviceInfo           `json:"device"`
 	Origin       OriginInfo           `json:"origin"`
